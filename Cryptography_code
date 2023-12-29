@@ -1,0 +1,145 @@
+using System;
+using MySql.Data.MySqlClient;
+using System.Security.Cryptography;
+using System.Text;
+
+namespace Crypto_Hash
+{
+    class Program
+    {
+        static void Main()
+        {
+            Begining();
+        }
+        static void Begining()
+        {
+            Console.Write("Type 1 if you wish to log in, 2 if you wish to create an account : ");
+            int action = Convert.ToInt32(Console.ReadLine());
+            if (action == 1)
+            {
+                Login();
+            }
+            if (action == 2)
+            {
+                CreateAccount();
+            }
+            else
+            {
+                Console.WriteLine("Incorrect command");
+                Begining();
+            }
+        }
+
+        static void Login()
+        {
+            Console.Write("Enter your login : ");
+            string login = Console.ReadLine();
+            Console.Write("Enter your password : ");
+            string password = Console.ReadLine();
+
+            // Hash password recovery from database
+            string hashedPasswordFromDatabase = GetHashedPasswordFromDatabase(login);
+
+            // SHA-256 hash of user-supplied password
+            string userHashedPassword = ComputeSHA256Hash(password);
+
+            // Comparison of hashed passwords
+            if (userHashedPassword == hashedPasswordFromDatabase)
+            {
+                Console.WriteLine("Correct password. Access authorized." +"\n" + "You are now connected to your account");
+            }
+            else
+            {
+                Console.WriteLine("Incorrect password. Access denied.");
+            }
+            Console.ReadLine();
+        }
+
+        static void CreateAccount()
+        {
+            Console.Write("Enter your login : ");
+            string login = Console.ReadLine();
+            Console.Write("Enter your password : ");
+            string password = Console.ReadLine();
+
+            // Hash SHA-256
+            string hashedPassword = ComputeSHA256Hash(password);
+
+            // Connection string to your MySQL database
+            string connectionString = "Server=localhost;Database=CryptographyProject;Uid=root;Pwd=#####;";
+
+            try
+            {
+                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                {
+                    connection.Open();
+
+                    // SQL query to insert data into the Account table
+                    string query = "INSERT INTO Account (login, mdp) VALUES (@Login, @PasswordHash)";
+
+                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    {
+                        // Settings to prevent SQL injections
+                        command.Parameters.AddWithValue("@Login", login);
+                        command.Parameters.AddWithValue("@PasswordHash", hashedPassword);
+                        command.ExecuteNonQuery();
+                    }
+                }
+
+                Console.WriteLine("Congratulations, you have created an account and saved it in the database!");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+        }
+
+        // Function to calculate the SHA-256 hash
+        static string ComputeSHA256Hash(string input)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                byte[] inputBytes = Encoding.UTF8.GetBytes(input);
+                byte[] hashBytes = sha256.ComputeHash(inputBytes);
+                return Convert.ToBase64String(hashBytes);
+            }
+        }
+        static string GetHashedPasswordFromDatabase(string login)
+        {
+            string connectionString = "Server=localhost;Database=CryptographyProject;Uid=root;Pwd=#####;";
+            try
+            {
+                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                {
+                    connection.Open();
+                    // SQL query to retrieve the hashed password based on the login
+                    string query = "SELECT mdp FROM Account WHERE login = @Login";
+
+                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    {
+                        // Settings to prevent SQL injections
+                        command.Parameters.AddWithValue("@Login", login);
+                        object result = command.ExecuteScalar();
+
+                        if (result != null)
+                        {
+                            return result.ToString();
+                        }
+                        else
+                        {
+                            // Login not found in database
+                            return string.Empty;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred while accessing the database: " + ex.Message);
+                return string.Empty;
+            }
+
+        }
+    }
+
+}
